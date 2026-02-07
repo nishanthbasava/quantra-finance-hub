@@ -1,19 +1,20 @@
 import { TrendingUp, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { ForecastProof } from "@/data/vaultData";
+import type { VaultForecastProof } from "@/lib/xrplVault/types";
 
-const outcomeStyles: Record<ForecastProof["outcome"], string> = {
-  Tracking: "bg-quantra-blue/10 text-quantra-blue",
-  Exceeded: "bg-quantra-green/10 text-quantra-green",
-  Missed: "bg-quantra-red/10 text-quantra-red",
+const outcomeStyles: Record<VaultForecastProof["status"], string> = {
+  tracking: "bg-quantra-blue/10 text-quantra-blue",
+  exceeded: "bg-quantra-green/10 text-quantra-green",
+  missed: "bg-quantra-red/10 text-quantra-red",
 };
 
 interface Props {
-  forecasts: ForecastProof[];
+  forecasts: VaultForecastProof[];
+  onCompare: (forecast: VaultForecastProof) => void;
 }
 
-const ForecastProofsCard = ({ forecasts }: Props) => (
+const ForecastProofsCard = ({ forecasts, onCompare }: Props) => (
   <div className="quantra-card p-0 overflow-hidden">
     {/* Header */}
     <div className="flex items-center gap-3 px-6 pt-6 pb-4">
@@ -28,26 +29,38 @@ const ForecastProofsCard = ({ forecasts }: Props) => (
 
     {/* Entries */}
     <div className="divide-y divide-border/50">
-      {forecasts.map((fc) => (
-        <div key={fc.id} className="px-6 py-4 flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground">{fc.label}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Created {fc.forecastDate}</p>
-            <div className="mt-2">
-              <Badge
-                variant="secondary"
-                className={`text-[11px] font-medium border-0 ${outcomeStyles[fc.outcome]}`}
-              >
-                {fc.outcome}
-              </Badge>
+      {forecasts.map((fc) => {
+        const dateStr = new Date(fc.createdAt).toLocaleDateString("en-US", {
+          month: "short",
+          year: "numeric",
+        });
+
+        return (
+          <div key={fc.id} className="px-6 py-4 flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">{fc.label}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Created {dateStr}</p>
+              <div className="mt-2">
+                <Badge
+                  variant="secondary"
+                  className={`text-[11px] font-medium border-0 capitalize ${outcomeStyles[fc.status]}`}
+                >
+                  {fc.status}
+                </Badge>
+              </div>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground shrink-0 gap-1.5"
+              onClick={() => onCompare(fc)}
+            >
+              <ExternalLink className="h-3 w-3" />
+              Compare
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground shrink-0 gap-1.5">
-            <ExternalLink className="h-3 w-3" />
-            Compare
-          </Button>
-        </div>
-      ))}
+        );
+      })}
     </div>
   </div>
 );

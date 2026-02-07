@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Info, Plus } from "lucide-react";
+import { Info, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,15 +18,34 @@ import LockedRulesCard from "@/components/vault/LockedRulesCard";
 import ForecastProofsCard from "@/components/vault/ForecastProofsCard";
 import VaultTimeline from "@/components/vault/VaultTimeline";
 import TrustCallout from "@/components/vault/TrustCallout";
-import {
-  demoSnapshots,
-  demoRules,
-  demoForecasts,
-  demoTimeline,
-} from "@/data/vaultData";
+import SnapshotDetailModal from "@/components/vault/SnapshotDetailModal";
+import RuleHistoryModal from "@/components/vault/RuleHistoryModal";
+import ForecastCompareModal from "@/components/vault/ForecastCompareModal";
+import CreateSnapshotDialog from "@/components/vault/CreateSnapshotDialog";
+import CreateRuleDialog from "@/components/vault/CreateRuleDialog";
+import { useVault } from "@/hooks/useVault";
+import type { VaultSnapshot, VaultRule, VaultForecastProof } from "@/lib/xrplVault/types";
 
 const XRPLVault = () => {
+  const vault = useVault();
+
+  // Info dialog
   const [infoOpen, setInfoOpen] = useState(false);
+
+  // Modal states
+  const [selectedSnapshot, setSelectedSnapshot] = useState<VaultSnapshot | null>(null);
+  const [selectedRule, setSelectedRule] = useState<VaultRule | null>(null);
+  const [selectedForecast, setSelectedForecast] = useState<VaultForecastProof | null>(null);
+  const [createSnapshotOpen, setCreateSnapshotOpen] = useState(false);
+  const [createRuleOpen, setCreateRuleOpen] = useState(false);
+
+  if (vault.loading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[calc(100vh-4rem)] pb-20">
@@ -69,9 +88,20 @@ const XRPLVault = () => {
         style={{ animationDelay: "0.1s" }}
       >
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <SnapshotsCard snapshots={demoSnapshots} />
-          <LockedRulesCard rules={demoRules} />
-          <ForecastProofsCard forecasts={demoForecasts} />
+          <SnapshotsCard
+            snapshots={vault.snapshots}
+            onDetails={(snap) => setSelectedSnapshot(snap)}
+            onCreateNew={() => setCreateSnapshotOpen(true)}
+          />
+          <LockedRulesCard
+            rules={vault.rules}
+            onHistory={(rule) => setSelectedRule(rule)}
+            onCreateNew={() => setCreateRuleOpen(true)}
+          />
+          <ForecastProofsCard
+            forecasts={vault.forecasts}
+            onCompare={(fc) => setSelectedForecast(fc)}
+          />
         </div>
       </section>
 
@@ -81,11 +111,10 @@ const XRPLVault = () => {
         style={{ animationDelay: "0.2s" }}
       >
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
-          <VaultTimeline entries={demoTimeline} />
+          <VaultTimeline events={vault.events} />
           <div className="space-y-5">
             <TrustCallout />
 
-            {/* Disabled Action */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-block w-full">
@@ -106,6 +135,58 @@ const XRPLVault = () => {
           </div>
         </div>
       </section>
+
+      {/* ── Modals ─────────────────────────────────────────────── */}
+
+      {/* Snapshot Details */}
+      <SnapshotDetailModal
+        snapshot={selectedSnapshot}
+        open={!!selectedSnapshot}
+        onOpenChange={(open) => {
+          if (!open) setSelectedSnapshot(null);
+        }}
+        onVerify={vault.verifySnapshot}
+        onAnchor={vault.anchorItem}
+      />
+
+      {/* Rule History */}
+      <RuleHistoryModal
+        rule={selectedRule}
+        open={!!selectedRule}
+        onOpenChange={(open) => {
+          if (!open) setSelectedRule(null);
+        }}
+        events={vault.events}
+        onArchive={(id) => {
+          vault.archiveRule(id);
+        }}
+        onAnchor={vault.anchorItem}
+      />
+
+      {/* Forecast Compare */}
+      <ForecastCompareModal
+        forecast={selectedForecast}
+        open={!!selectedForecast}
+        onOpenChange={(open) => {
+          if (!open) setSelectedForecast(null);
+        }}
+        onEvaluate={vault.evaluateForecast}
+        onAnchor={vault.anchorItem}
+      />
+
+      {/* Create Snapshot */}
+      <CreateSnapshotDialog
+        open={createSnapshotOpen}
+        onOpenChange={setCreateSnapshotOpen}
+        onCreate={vault.createSnapshot}
+      />
+
+      {/* Create Rule */}
+      <CreateRuleDialog
+        open={createRuleOpen}
+        onOpenChange={setCreateRuleOpen}
+        onCreate={vault.createRule}
+      />
     </div>
   );
 };
