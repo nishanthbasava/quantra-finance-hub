@@ -38,7 +38,11 @@ const Transactions = () => {
 
       {/* Command bar */}
       <section className="max-w-6xl mx-auto px-6 mb-6 animate-fade-in" style={{ animationDelay: "0.05s" }}>
-        <InsightCommandBar onCommand={handleCommand} />
+        <InsightCommandBar
+          onCommand={handleCommand}
+          filters={filters as unknown as Record<string, unknown>}
+          transactionCount={filtered.length}
+        />
       </section>
 
       {/* Insight charts */}

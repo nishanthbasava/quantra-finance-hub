@@ -39,7 +39,12 @@ const Simulation = () => {
               onRemoveScenario={sim.removeScenario}
               onReset={sim.resetAll}
             />
-            <NLPInput onSubmit={sim.addFromNLP} />
+            <NLPInput
+              onSubmit={sim.addFromNLP}
+              simulationType={sim.simulationType}
+              metric={sim.metric}
+              scenarioCount={sim.scenarios.length}
+            />
           </div>
 
           {/* Right: Output */}

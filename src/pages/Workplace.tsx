@@ -1,23 +1,57 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { AnimatePresence } from "framer-motion";
 import { useSelection } from "@/contexts/SelectionContext";
+import { useData } from "@/contexts/DataContext";
 import ContextPanel from "@/components/workspace/ContextPanel";
 import ChatMessageBubble from "@/components/workspace/ChatMessageBubble";
 import ChatInput from "@/components/workspace/ChatInput";
-import { generateDemoResponse, type ChatMessage } from "@/components/workspace/demoResponses";
+import { type ChatMessage } from "@/components/workspace/demoResponses";
+import { useLLMChat, type LLMResponse } from "@/hooks/useLLMChat";
 
 const Workplace = () => {
   const { selectedNodes, selectedTransactions, totalSelected } = useSelection();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
+  const { timeRange, totalExpenses } = useData();
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Build context from selected items
+  const selectedItems = useMemo(() => {
+    const items: unknown[] = [];
+    selectedNodes.forEach((node) => {
+      items.push({ type: "sankey_node", id: node.id, label: node.label, amount: node.amount, category: node.categoryName, depth: node.depth });
+    });
+    selectedTransactions.forEach((tx) => {
+      items.push({ type: "transaction", id: tx.id, merchant: tx.merchant, amount: tx.amount, category: tx.category });
+    });
+    return items;
+  }, [selectedNodes, selectedTransactions]);
+
+  const context = useMemo(() => ({
+    page: "workspace" as const,
+    selectedItems,
+    mockData: { timeRange, totalExpenses, totalSelected },
+  }), [selectedItems, timeRange, totalExpenses, totalSelected]);
+
+  const handleResponse = useCallback((res: LLMResponse) => {
+    const assistantMsg: ChatMessage = {
+      id: `assistant-${Date.now()}`,
+      role: "assistant",
+      content: res.assistantMessage,
+    };
+    setChatMessages(prev => [...prev, assistantMsg]);
+  }, []);
+
+  const llm = useLLMChat({
+    context,
+    onResponse: handleResponse,
+  });
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }
-  }, [messages, isTyping]);
+  }, [chatMessages, llm.isLoading]);
 
   const handleSend = useCallback(
     (text: string) => {
@@ -26,17 +60,10 @@ const Workplace = () => {
         role: "user",
         content: text,
       };
-      setMessages((prev) => [...prev, userMsg]);
-      setIsTyping(true);
-
-      // Simulate response delay
-      setTimeout(() => {
-        const response = generateDemoResponse(text, selectedNodes, selectedTransactions);
-        setMessages((prev) => [...prev, response]);
-        setIsTyping(false);
-      }, 800 + Math.random() * 600);
+      setChatMessages(prev => [...prev, userMsg]);
+      llm.sendMessage(text);
     },
-    [selectedNodes, selectedTransactions]
+    [llm]
   );
 
   return (
@@ -63,7 +90,7 @@ const Workplace = () => {
           ref={scrollRef}
           className="flex-1 overflow-y-auto space-y-4 pb-4 scrollbar-thin"
         >
-          {messages.length === 0 && !isTyping && (
+          {chatMessages.length === 0 && !llm.isLoading && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-2 animate-fade-in">
                 <p className="text-muted-foreground text-sm">
@@ -76,12 +103,12 @@ const Workplace = () => {
           )}
 
           <AnimatePresence mode="popLayout">
-            {messages.map((msg) => (
+            {chatMessages.map((msg) => (
               <ChatMessageBubble key={msg.id} message={msg} />
             ))}
           </AnimatePresence>
 
-          {isTyping && (
+          {llm.isLoading && (
             <div className="flex justify-start">
               <div className="bg-card border border-border/60 rounded-2xl rounded-bl-md px-4 py-3">
                 <div className="flex gap-1">
@@ -96,7 +123,7 @@ const Workplace = () => {
 
         {/* Input bar – pinned to bottom */}
         <section className="shrink-0 pb-6 pt-2">
-          <ChatInput onSend={handleSend} disabled={isTyping} />
+          <ChatInput onSend={handleSend} disabled={llm.isLoading} />
         </section>
       </div>
     </div>
