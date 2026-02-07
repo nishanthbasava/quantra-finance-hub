@@ -1,16 +1,23 @@
 import { useState, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { ChevronDown, Check } from "lucide-react";
 import { getCategoryByName, getSubCategoryByName } from "./sankey/sankeyData";
-import { useMultiLevelLayout, COLUMN_SPACING, LABEL_AREA, NODE_WIDTH } from "./sankey/useMultiLevelLayout";
+import { useMultiLevelLayout, LABEL_AREA, NODE_WIDTH } from "./sankey/useMultiLevelLayout";
 import MultiLevelFlowPath from "./sankey/MultiLevelFlowPath";
 import MultiLevelNode from "./sankey/MultiLevelNode";
 import MultiLevelTooltip from "./sankey/MultiLevelTooltip";
 import { useSelection } from "@/contexts/SelectionContext";
-import { useData } from "@/contexts/DataContext";
+import { useData, TIME_RANGE_OPTIONS, type TimeRange } from "@/contexts/DataContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const SankeyDiagram = () => {
   const { selectMode, selectedNodes, toggleNode } = useSelection();
-  const { sankeyCategories, totalExpenses } = useData();
+  const { sankeyCategories, totalExpenses, timeRange, setTimeRange, isUpdating } = useData();
 
   const [expandedL1, setExpandedL1] = useState<Set<string>>(new Set());
   const [expandedL2, setExpandedL2] = useState<Set<string>>(new Set());
@@ -34,6 +41,16 @@ const SankeyDiagram = () => {
   const { columns, links, nodePositions, svgHeight, svgWidth, maxDepth } = useMultiLevelLayout(
     sankeyCategories, totalExpenses, expandedL1, expandedL2
   );
+
+  const currentLabel = TIME_RANGE_OPTIONS.find(o => o.value === timeRange)?.label ?? "Last 90 Days";
+
+  const handleRangeChange = useCallback((range: TimeRange) => {
+    // Reset expansions when range changes
+    setExpandedL1(new Set());
+    setExpandedL2(new Set());
+    setFocusedCategory(null);
+    setTimeRange(range);
+  }, [setTimeRange]);
 
   const toggleLevel1 = useCallback((name: string) => {
     setExpandedL1((prev) => {
@@ -188,15 +205,62 @@ const SankeyDiagram = () => {
   const needsScroll = columns.length > 1;
 
   return (
-    <div className="quantra-card p-6 overflow-hidden" ref={containerRef}>
+    <div className="quantra-card p-6 overflow-hidden relative" ref={containerRef}>
+      {/* Shimmer overlay */}
+      <AnimatePresence>
+        {isUpdating && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 z-20 rounded-xl bg-card/60 backdrop-blur-[1px]"
+          >
+            <div className="h-full w-full flex items-center justify-center">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="h-4 w-4 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+                Updating…
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold text-foreground">▸ Cash Flow Explorer</span>
           <span className="text-sm text-muted-foreground">All Accounts</span>
         </div>
-        <div className="quantra-chip text-xs">Last 90 Days ▾</div>
+
+        {/* Time range dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="quantra-chip text-xs inline-flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1 focus:ring-offset-background">
+              {currentLabel}
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            {TIME_RANGE_OPTIONS.map((option) => (
+              <DropdownMenuItem
+                key={option.value}
+                onClick={() => handleRangeChange(option.value)}
+                className="flex items-center justify-between cursor-pointer"
+              >
+                <span className={timeRange === option.value ? "font-medium text-foreground" : ""}>
+                  {option.label}
+                </span>
+                {timeRange === option.value && (
+                  <Check className="w-3.5 h-3.5 text-primary" />
+                )}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
+      {/* Scrollable Sankey container */}
       <div className="relative">
         {needsScroll && (
           <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-card to-transparent z-10 pointer-events-none" />

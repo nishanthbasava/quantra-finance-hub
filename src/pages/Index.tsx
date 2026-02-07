@@ -1,14 +1,17 @@
 import MetricCard from "@/components/MetricCard";
 import SankeyDiagram from "@/components/SankeyDiagram";
 import PromptBar from "@/components/PromptBar";
-import { useData } from "@/contexts/DataContext";
+import { useData, TIME_RANGE_OPTIONS } from "@/contexts/DataContext";
 
 const Dashboard = () => {
-  const { totalBalance, monthlyIncome, monthlyExpenseTotal, cashFlow } = useData();
+  const { totalBalance, monthlyIncome, monthlyExpenseTotal, cashFlow, timeRange } = useData();
 
   const cashFlowPct = monthlyExpenseTotal > 0
     ? ((cashFlow / monthlyExpenseTotal) * 100).toFixed(1)
     : "0.0";
+
+  const rangeLabel = TIME_RANGE_OPTIONS.find(o => o.value === timeRange)?.label ?? "Last 90 Days";
+  const subtitle = timeRange === "90d" ? "Monthly avg" : rangeLabel;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] pb-28">
@@ -32,18 +35,18 @@ const Dashboard = () => {
           <MetricCard
             title="Income"
             value={`+$${monthlyIncome.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
-            subtitle="Monthly avg"
+            subtitle={subtitle}
             valueColor="text-quantra-green"
           />
           <MetricCard
             title="Expenses"
             value={`−$${monthlyExpenseTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
-            subtitle="Monthly avg"
+            subtitle={subtitle}
             valueColor="text-quantra-red"
           />
           <MetricCard
             title="Cash Flow"
-            value={`${cashFlow >= 0 ? "+" : ""}$${cashFlow.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
+            value={`${cashFlow >= 0 ? "+" : ""}$${Math.abs(cashFlow).toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
             badge={`${cashFlow >= 0 ? "+" : ""}${cashFlowPct}%`}
             badgeColor={cashFlow >= 0 ? "text-quantra-green" : "text-quantra-red"}
             subtitle="monthly net"
