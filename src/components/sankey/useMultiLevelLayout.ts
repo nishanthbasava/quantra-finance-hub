@@ -1,21 +1,21 @@
 import { useMemo } from "react";
-import { categories, totalExpenses, type Category, type SubCategory } from "./sankeyData";
+import type { Category, SubCategory } from "./sankeyData";
 
 // A node in the Sankey at any level
 export interface SankeyColumnNode {
-  id: string; // unique key, e.g. "Food" or "Food>Groceries" or "Food>Groceries>Trader Joe's"
+  id: string;
   label: string;
   amount: number;
   color: string;
   parentId: string | null;
-  categoryName: string; // root category name for color lookup
-  depth: number; // 0, 1, or 2
+  categoryName: string;
+  depth: number;
 }
 
 export interface ColumnData {
   depth: number;
   nodes: SankeyColumnNode[];
-  x: number; // horizontal position
+  x: number;
 }
 
 export interface FlowLink {
@@ -46,8 +46,10 @@ const DEPTH_GAP_MULTIPLIER = 1.4;
 export { COLUMN_WIDTH, COLUMN_SPACING, LABEL_AREA, NODE_WIDTH };
 
 export function useMultiLevelLayout(
-  expandedLevel1: Set<string>, // expanded category names
-  expandedLevel2: Set<string>  // expanded subcategory ids like "Food>Groceries"
+  categories: Category[],
+  totalExpenses: number,
+  expandedLevel1: Set<string>,
+  expandedLevel2: Set<string>
 ) {
   // Build columns based on expansion state
   const columns = useMemo(() => {
@@ -113,7 +115,7 @@ export function useMultiLevelLayout(
     }
 
     return cols;
-  }, [expandedLevel1, expandedLevel2]);
+  }, [categories, expandedLevel1, expandedLevel2]);
 
   // Build flow links between adjacent columns
   const links = useMemo(() => {

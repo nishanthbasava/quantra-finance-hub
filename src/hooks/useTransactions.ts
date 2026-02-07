@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { demoTransactions, type Transaction } from "@/data/transactionData";
+import { useData } from "@/contexts/DataContext";
+import type { Transaction } from "@/data/transactionData";
 
 export type SortField = "date" | "amount";
 export type SortDir = "asc" | "desc";
@@ -13,6 +14,8 @@ export interface TransactionFilters {
 }
 
 export function useTransactions() {
+  const { transactions } = useData();
+
   const [filters, setFilters] = useState<TransactionFilters>({
     search: "",
     category: null,
@@ -24,7 +27,7 @@ export function useTransactions() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const filtered = useMemo(() => {
-    let result = [...demoTransactions];
+    let result = [...transactions];
 
     if (filters.search) {
       const q = filters.search.toLowerCase();
@@ -55,7 +58,7 @@ export function useTransactions() {
     });
 
     return result;
-  }, [filters, sortField, sortDir]);
+  }, [transactions, filters, sortField, sortDir]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {

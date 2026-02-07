@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SelectionProvider } from "@/contexts/SelectionContext";
+import { DataProvider } from "@/contexts/DataContext";
 import Navbar from "./components/Navbar";
 import SelectModeButton from "./components/SelectModeButton";
 import Index from "./pages/Index";
@@ -18,22 +19,24 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <SelectionProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Navbar />
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/transactions" element={<Transactions />} />
-            <Route path="/workplace" element={<Workplace />} />
-            <Route path="/simulation" element={<Simulation />} />
-            <Route path="/xrpl-vault" element={<XRPLVault />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          <SelectModeButton />
-        </BrowserRouter>
-      </SelectionProvider>
+      <DataProvider>
+        <SelectionProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Navbar />
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/transactions" element={<Transactions />} />
+              <Route path="/workplace" element={<Workplace />} />
+              <Route path="/simulation" element={<Simulation />} />
+              <Route path="/xrpl-vault" element={<XRPLVault />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            <SelectModeButton />
+          </BrowserRouter>
+        </SelectionProvider>
+      </DataProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
