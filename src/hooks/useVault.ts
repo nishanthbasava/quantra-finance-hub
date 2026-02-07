@@ -181,6 +181,59 @@ export function useVault() {
 
   // ── Forecasts ────────────────────────────────────────────────
 
+  const createForecast = useCallback(
+    async (
+      label: string,
+      metric: "Total Balance" | "Savings" | "Expenses",
+      horizonMonths: number
+    ) => {
+      const createdAt = nowISO();
+      // Generate simple baseline/scenario arrays
+      const baseVal = metric === "Total Balance" ? 12000 : metric === "Savings" ? 4200 : 4500;
+      const baseline: number[] = [];
+      const scenario: number[] = [];
+      let b = baseVal;
+      let s = baseVal;
+      for (let i = 0; i < horizonMonths; i++) {
+        baseline.push(Math.round(b));
+        scenario.push(Math.round(s));
+        b += b * 0.02;
+        s += s * 0.03;
+      }
+
+      const baselineHash = await hashPayload(baseline);
+      const scenarioHash = await hashPayload(scenario);
+      const hash = await hashPayload({
+        metric,
+        horizonMonths,
+        baselineHash,
+        scenarioHash,
+      });
+
+      const fc: VaultForecastProof = {
+        id: uid(),
+        label,
+        createdAt,
+        metric,
+        horizonMonths,
+        baselineHash,
+        scenarioHash,
+        hash,
+        status: "tracking",
+        baselineData: baseline,
+        scenarioData: scenario,
+      };
+
+      setState((prev) => ({
+        ...prev,
+        forecasts: [fc, ...prev.forecasts],
+      }));
+      addEvent("forecast", "created", fc.id, `Forecast created — ${label}`);
+      return fc;
+    },
+    [addEvent]
+  );
+
   const evaluateForecast = useCallback(
     (id: string, newStatus: "tracking" | "exceeded" | "missed") => {
       const fc = state.forecasts.find((f) => f.id === id);
@@ -269,6 +322,7 @@ export function useVault() {
     verifySnapshot,
     createRule,
     archiveRule,
+    createForecast,
     evaluateForecast,
     anchorItem,
   };

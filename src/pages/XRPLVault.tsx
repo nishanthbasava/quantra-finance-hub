@@ -8,11 +8,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/components/ui/tooltip";
 import SnapshotsCard from "@/components/vault/SnapshotsCard";
 import LockedRulesCard from "@/components/vault/LockedRulesCard";
 import ForecastProofsCard from "@/components/vault/ForecastProofsCard";
@@ -23,6 +18,7 @@ import RuleHistoryModal from "@/components/vault/RuleHistoryModal";
 import ForecastCompareModal from "@/components/vault/ForecastCompareModal";
 import CreateSnapshotDialog from "@/components/vault/CreateSnapshotDialog";
 import CreateRuleDialog from "@/components/vault/CreateRuleDialog";
+import CreateVaultRecordDialog from "@/components/vault/CreateVaultRecordDialog";
 import { useVault } from "@/hooks/useVault";
 import type { VaultSnapshot, VaultRule, VaultForecastProof } from "@/lib/xrplVault/types";
 
@@ -38,6 +34,7 @@ const XRPLVault = () => {
   const [selectedForecast, setSelectedForecast] = useState<VaultForecastProof | null>(null);
   const [createSnapshotOpen, setCreateSnapshotOpen] = useState(false);
   const [createRuleOpen, setCreateRuleOpen] = useState(false);
+  const [createRecordOpen, setCreateRecordOpen] = useState(false);
 
   if (vault.loading) {
     return (
@@ -115,23 +112,14 @@ const XRPLVault = () => {
           <div className="space-y-5">
             <TrustCallout />
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-block w-full">
-                  <Button
-                    disabled
-                    className="w-full gap-2 opacity-60"
-                    size="lg"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Create new vault record
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                Coming soon — enable verification after setup.
-              </TooltipContent>
-            </Tooltip>
+            <Button
+              onClick={() => setCreateRecordOpen(true)}
+              className="w-full gap-2"
+              size="lg"
+            >
+              <Plus className="h-4 w-4" />
+              Create new vault record
+            </Button>
           </div>
         </div>
       </section>
@@ -186,6 +174,15 @@ const XRPLVault = () => {
         open={createRuleOpen}
         onOpenChange={setCreateRuleOpen}
         onCreate={vault.createRule}
+      />
+
+      {/* Unified Create Record */}
+      <CreateVaultRecordDialog
+        open={createRecordOpen}
+        onOpenChange={setCreateRecordOpen}
+        onCreateSnapshot={vault.createSnapshot}
+        onCreateRule={vault.createRule}
+        onCreateForecast={vault.createForecast}
       />
     </div>
   );
