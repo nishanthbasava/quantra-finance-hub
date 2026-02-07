@@ -27,7 +27,7 @@ const Navbar = () => {
         {/* Logo + Nav */}
         <div className="flex items-center gap-8">
           <Link to="/" className="flex items-center gap-2.5">
-            <img src={quantraLogo} alt="Quantra" className="h-8 w-auto" />
+            <img src={quantraLogo} alt="Quantra" className="h-14 -my-3 w-auto rounded bg-background" />
           </Link>
 
           <nav className="hidden items-center gap-6 md:flex">
