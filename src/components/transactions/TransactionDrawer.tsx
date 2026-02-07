@@ -66,7 +66,7 @@ const TransactionDrawer = ({ transaction, onClose }: TransactionDrawerProps) => 
                     Category Path
                   </p>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {[transaction.category, transaction.subcategory, transaction.subsubcategory].map((segment, i) => (
+                    {(transaction.categoryPath ?? [transaction.category, transaction.subcategory, transaction.subsubcategory]).map((segment, i) => (
                       <span key={i} className="flex items-center gap-2">
                         {i > 0 && <span className="text-muted-foreground/40">→</span>}
                         <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${

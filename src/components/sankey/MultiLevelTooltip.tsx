@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { totalExpenses } from "./sankeyData";
+import { useData } from "@/contexts/DataContext";
 
 interface MultiLevelTooltipProps {
   visible: boolean;
@@ -22,6 +22,7 @@ const MultiLevelTooltip = ({
   parentAmount,
   depth,
 }: MultiLevelTooltipProps) => {
+  const { totalExpenses } = useData();
   const pctTotal = ((amount / totalExpenses) * 100).toFixed(1);
   const pctParent = parentAmount ? ((amount / parentAmount) * 100).toFixed(1) : null;
 

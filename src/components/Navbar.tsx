@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, RefreshCw, Lock, Unlock } from "lucide-react";
 import quantraLogo from "@/assets/quantra-logo.png";
+import { useData } from "@/contexts/DataContext";
 
 const navLinks = [
   { label: "Dashboard", path: "/" },
@@ -13,8 +14,8 @@ const navLinks = [
 
 const Navbar = () => {
   const location = useLocation();
-  const [demoMode, setDemoMode] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const { seedInfo, isLocked, onToggleLock, onRegenerate } = useData();
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
@@ -48,23 +49,34 @@ const Navbar = () => {
         </div>
 
         {/* Right side */}
-        <div className="flex items-center gap-4">
-          {/* Demo Mode Toggle */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setDemoMode(!demoMode)}
-              className={`relative h-6 w-11 rounded-full transition-colors duration-200 ${
-                demoMode ? "quantra-gradient-bg" : "bg-muted"
-              }`}
-            >
-              <span
-                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-card shadow-sm transition-transform duration-200 ${
-                  demoMode ? "translate-x-5" : "translate-x-0"
-                }`}
-              />
-            </button>
-            <span className="text-sm text-muted-foreground font-medium">Demo Mode</span>
-          </div>
+        <div className="flex items-center gap-3">
+          {/* Seed indicator */}
+          <span className="hidden md:inline-flex items-center gap-1.5 text-[10px] text-muted-foreground/60 font-mono tabular-nums">
+            Synthetic • {seedInfo.profileSeed.toString(16).slice(0, 6).toUpperCase()}
+          </span>
+
+          {/* Lock seed toggle */}
+          <button
+            onClick={onToggleLock}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+              isLocked
+                ? "bg-primary/10 border-primary/30 text-primary"
+                : "bg-muted/50 border-border/60 text-muted-foreground hover:text-foreground"
+            }`}
+            title={isLocked ? "Seed locked — data is stable across reloads" : "Seed unlocked — data varies each hour"}
+          >
+            {isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+            <span className="hidden sm:inline">{isLocked ? "Locked" : "Unlocked"}</span>
+          </button>
+
+          {/* Regenerate button */}
+          <button
+            onClick={onRegenerate}
+            className="p-2 rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title="Regenerate data with new persona"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </button>
 
           {/* Dark mode toggle */}
           <button

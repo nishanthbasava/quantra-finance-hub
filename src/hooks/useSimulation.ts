@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
+import { useData } from "@/contexts/DataContext";
 import {
   Scenario,
   ScenarioInputs,
@@ -10,25 +11,25 @@ import {
   OneTimeInputs,
   IncomeInputs,
   SCENARIO_COLORS,
-  DEFAULT_SUBSCRIPTIONS,
   generateBaseline,
   generateScenarioForecast,
   generateSuggestions,
   generateQuestion,
   parseNLPScenario,
+  type SimulationBaseline,
 } from "@/data/simulationData";
 
 let idCounter = 0;
 
-function getDefaultInputs(type: SimulationType): ScenarioInputs {
+function getDefaultInputs(type: SimulationType, bl: SimulationBaseline): ScenarioInputs {
   switch (type) {
     case "budgeting":
       return { type: "budgeting", data: { preset: "50/30/20", needs: 50, wants: 30, savings: 20 } };
     case "habits":
-      return { type: "habits", data: { reduceDiningOut: 0, capRideshare: 180, increaseGroceries: 0 } };
+      return { type: "habits", data: { reduceDiningOut: 0, capRideshare: bl.rideshare, increaseGroceries: 0 } };
     case "subscriptions": {
       const toggles: Record<string, boolean> = {};
-      DEFAULT_SUBSCRIPTIONS.forEach(sub => { toggles[sub.name] = true; });
+      bl.subscriptions.forEach(sub => { toggles[sub.name] = true; });
       return { type: "subscriptions", data: { toggles } };
     }
     case "one-time":
@@ -39,16 +40,18 @@ function getDefaultInputs(type: SimulationType): ScenarioInputs {
 }
 
 export function useSimulation() {
+  const { baseline } = useData();
+
   const [simulationType, setSimulationType] = useState<SimulationType>("budgeting");
   const [scenarioName, setScenarioName] = useState("Scenario A");
-  const [currentInputs, setCurrentInputs] = useState<ScenarioInputs>(getDefaultInputs("budgeting"));
+  const [currentInputs, setCurrentInputs] = useState<ScenarioInputs>(getDefaultInputs("budgeting", baseline));
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [metric, setMetric] = useState<ForecastMetric>("balance");
 
   const handleTypeChange = useCallback((type: SimulationType) => {
     setSimulationType(type);
-    setCurrentInputs(getDefaultInputs(type));
-  }, []);
+    setCurrentInputs(getDefaultInputs(type, baseline));
+  }, [baseline]);
 
   const updateInputs = useCallback(<T extends ScenarioInputs["data"]>(updater: (prev: T) => T) => {
     setCurrentInputs(prev => ({
@@ -75,12 +78,12 @@ export function useSimulation() {
 
   const resetAll = useCallback(() => {
     setScenarios([]);
-    setCurrentInputs(getDefaultInputs(simulationType));
+    setCurrentInputs(getDefaultInputs(simulationType, baseline));
     setScenarioName("Scenario A");
-  }, [simulationType]);
+  }, [simulationType, baseline]);
 
   const addFromNLP = useCallback((text: string): boolean => {
-    const parsed = parseNLPScenario(text);
+    const parsed = parseNLPScenario(text, baseline);
     if (!parsed || scenarios.length >= 4) return false;
     const newScenario: Scenario = {
       id: `scenario-${++idCounter}`,
@@ -90,39 +93,38 @@ export function useSimulation() {
     };
     setScenarios(prev => [...prev, newScenario]);
     return true;
-  }, [scenarios]);
+  }, [scenarios, baseline]);
 
   const forecastData = useMemo(() => {
-    const baseline = generateBaseline(metric);
+    const baselineData = generateBaseline(metric, baseline);
     const scenarioLines = scenarios.map(s => ({
       scenario: s,
-      data: generateScenarioForecast(s, metric),
+      data: generateScenarioForecast(s, metric, baseline),
     }));
 
-    // Merge into chart-ready format
-    return baseline.map((bp, i) => {
+    return baselineData.map((bp, i) => {
       const point: Record<string, number | string> = { month: bp.month, Baseline: bp.value };
       scenarioLines.forEach(({ scenario, data }) => {
         point[scenario.name] = data[i].value;
       });
       return point;
     });
-  }, [scenarios, metric]);
+  }, [scenarios, metric, baseline]);
 
   const summaryCards = useMemo(() => {
     if (scenarios.length === 0) return null;
     const lastScenario = scenarios[scenarios.length - 1];
-    const data = generateScenarioForecast(lastScenario, metric);
-    const baseline = generateBaseline(metric);
+    const data = generateScenarioForecast(lastScenario, metric, baseline);
+    const baselineData = generateBaseline(metric, baseline);
 
     const best = data.reduce((max, p) => (p.value > max.value ? p : max), data[0]);
     const worst = data.reduce((min, p) => (p.value < min.value ? p : min), data[0]);
-    const endDelta = data[data.length - 1].value - baseline[baseline.length - 1].value;
+    const endDelta = data[data.length - 1].value - baselineData[baselineData.length - 1].value;
 
     return { best, worst, endDelta, scenarioName: lastScenario.name };
-  }, [scenarios, metric]);
+  }, [scenarios, metric, baseline]);
 
-  const suggestions = useMemo(() => generateSuggestions(scenarios), [scenarios]);
+  const suggestions = useMemo(() => generateSuggestions(scenarios, baseline), [scenarios, baseline]);
   const question = useMemo(() => generateQuestion(scenarios, metric), [scenarios, metric]);
 
   return {

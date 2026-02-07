@@ -1,4 +1,5 @@
-import { ScenarioInputs, BudgetingInputs, HabitInputs, SubscriptionInputs, OneTimeInputs, IncomeInputs, BUDGET_PRESETS, DEFAULT_SUBSCRIPTIONS } from "@/data/simulationData";
+import { ScenarioInputs, BudgetingInputs, HabitInputs, SubscriptionInputs, OneTimeInputs, IncomeInputs, BUDGET_PRESETS } from "@/data/simulationData";
+import { useData } from "@/contexts/DataContext";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,6 +81,8 @@ function HabitsPanel({ data, onUpdate }: { data: HabitInputs; onUpdate: Props["o
 // ─── Subscriptions ──────────────────────────────────────────────────────────
 
 function SubscriptionsPanel({ data, onUpdate }: { data: SubscriptionInputs; onUpdate: Props["onUpdate"] }) {
+  const { baseline } = useData();
+
   const toggle = (name: string) => {
     onUpdate<SubscriptionInputs>(prev => ({
       ...prev,
@@ -89,7 +92,7 @@ function SubscriptionsPanel({ data, onUpdate }: { data: SubscriptionInputs; onUp
 
   return (
     <div className="space-y-2.5">
-      {DEFAULT_SUBSCRIPTIONS.map(sub => (
+      {baseline.subscriptions.map(sub => (
         <div key={sub.name} className="flex items-center justify-between py-1">
           <div className="flex flex-col">
             <span className="text-sm text-foreground">{sub.name}</span>

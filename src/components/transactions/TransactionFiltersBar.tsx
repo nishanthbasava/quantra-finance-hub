@@ -1,5 +1,5 @@
 import { Search, ChevronDown } from "lucide-react";
-import { allCategories, allAccounts } from "@/data/transactionData";
+import { useData } from "@/contexts/DataContext";
 import type { TransactionFilters } from "@/hooks/useTransactions";
 
 interface TransactionFiltersBarProps {
@@ -9,6 +9,8 @@ interface TransactionFiltersBarProps {
 }
 
 const TransactionFiltersBar = ({ filters, onChange, resultCount }: TransactionFiltersBarProps) => {
+  const { allCategories, allAccounts } = useData();
+
   return (
     <div className="flex flex-wrap items-center gap-3">
       {/* Search */}

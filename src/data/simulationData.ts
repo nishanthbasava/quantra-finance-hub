@@ -15,23 +15,23 @@ export interface BudgetingInputs {
 }
 
 export interface HabitInputs {
-  reduceDiningOut: number;   // $/week reduction
-  capRideshare: number;      // $/month cap
-  increaseGroceries: number; // $/month increase
+  reduceDiningOut: number;
+  capRideshare: number;
+  increaseGroceries: number;
 }
 
 export interface SubscriptionInputs {
-  toggles: Record<string, boolean>; // subscription name → active
+  toggles: Record<string, boolean>;
 }
 
 export interface OneTimeInputs {
   amount: number;
-  month: number; // 1–12
+  month: number;
 }
 
 export interface IncomeInputs {
-  amount: number;    // $/month
-  startMonth: number; // 1–12
+  amount: number;
+  startMonth: number;
 }
 
 export type ScenarioInputs =
@@ -73,20 +73,11 @@ export const BUDGET_PRESETS: { value: BudgetingInputs["preset"]; label: string; 
   { value: "custom", label: "Custom", needs: 50, wants: 30, savings: 20 },
 ];
 
-export const DEFAULT_SUBSCRIPTIONS: { name: string; cost: number }[] = [
-  { name: "Netflix", cost: 15.49 },
-  { name: "Spotify", cost: 10.99 },
-  { name: "YouTube Premium", cost: 13.99 },
-  { name: "iCloud+", cost: 2.99 },
-  { name: "ChatGPT Plus", cost: 20.00 },
-  { name: "Gym Membership", cost: 49.99 },
-];
-
 export const SCENARIO_COLORS = [
-  "hsl(170, 70%, 50%)",  // teal
-  "hsl(260, 50%, 60%)",  // purple
-  "hsl(30, 80%, 55%)",   // orange
-  "hsl(340, 60%, 60%)",  // pink
+  "hsl(170, 70%, 50%)",
+  "hsl(260, 50%, 60%)",
+  "hsl(30, 80%, 55%)",
+  "hsl(340, 60%, 60%)",
 ];
 
 export const FORECAST_METRICS: { value: ForecastMetric; label: string }[] = [
@@ -96,43 +87,47 @@ export const FORECAST_METRICS: { value: ForecastMetric; label: string }[] = [
   { value: "savings", label: "Savings Rate" },
 ];
 
-// ─── Baseline Data ──────────────────────────────────────────────────────────
+// ─── Dynamic Baseline ──────────────────────────────────────────────────────
+
+export interface SimulationBaseline {
+  monthlyIncome: number;
+  monthlyExpenses: number;
+  balance: number;
+  diningOut: number;
+  rideshare: number;
+  groceries: number;
+  subscriptionTotal: number;
+  subscriptions: { name: string; cost: number }[];
+}
 
 const MONTHS = ["Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-const BASELINE = {
-  monthlyIncome: 5260,
-  monthlyExpenses: 2750,
-  balance: 20543,
-  diningOut: 320,
-  rideshare: 180,
-  groceries: 400,
-  subscriptionTotal: DEFAULT_SUBSCRIPTIONS.reduce((s, sub) => s + sub.cost, 0),
-};
-
 // ─── Forecast Engine ────────────────────────────────────────────────────────
 
-export function generateBaseline(metric: ForecastMetric): ForecastPoint[] {
+export function generateBaseline(metric: ForecastMetric, bl: SimulationBaseline): ForecastPoint[] {
   return MONTHS.map((month, i) => {
     const noise = Math.sin(i * 1.3) * 120 + Math.cos(i * 0.7) * 80;
     switch (metric) {
       case "balance":
-        return { month, value: Math.round(BASELINE.balance + (BASELINE.monthlyIncome - BASELINE.monthlyExpenses) * i + noise) };
+        return { month, value: Math.round(bl.balance + (bl.monthlyIncome - bl.monthlyExpenses) * i + noise) };
       case "cashflow":
-        return { month, value: Math.round(BASELINE.monthlyIncome - BASELINE.monthlyExpenses + noise) };
+        return { month, value: Math.round(bl.monthlyIncome - bl.monthlyExpenses + noise) };
       case "expenses":
-        return { month, value: Math.round(BASELINE.monthlyExpenses + noise * 0.5) };
-      case "savings":
-        return { month, value: Math.round(((BASELINE.monthlyIncome - BASELINE.monthlyExpenses) / BASELINE.monthlyIncome) * 100 + noise * 0.02) };
+        return { month, value: Math.round(bl.monthlyExpenses + noise * 0.5) };
+      case "savings": {
+        const rate = ((bl.monthlyIncome - bl.monthlyExpenses) / bl.monthlyIncome) * 100;
+        return { month, value: Math.round(rate + noise * 0.02) };
+      }
     }
   });
 }
 
 export function generateScenarioForecast(
   scenario: Scenario,
-  metric: ForecastMetric
+  metric: ForecastMetric,
+  bl: SimulationBaseline
 ): ForecastPoint[] {
-  const baseline = generateBaseline(metric);
+  const baseline = generateBaseline(metric, bl);
 
   return baseline.map((point, i) => {
     let delta = 0;
@@ -140,18 +135,18 @@ export function generateScenarioForecast(
     switch (scenario.inputs.type) {
       case "budgeting": {
         const d = scenario.inputs.data;
-        const targetExpenses = BASELINE.monthlyIncome * ((d.needs + d.wants) / 100);
-        delta = BASELINE.monthlyExpenses - targetExpenses;
+        const targetExpenses = bl.monthlyIncome * ((d.needs + d.wants) / 100);
+        delta = bl.monthlyExpenses - targetExpenses;
         break;
       }
       case "habits": {
         const d = scenario.inputs.data;
-        delta = d.reduceDiningOut * 4 + Math.max(0, BASELINE.rideshare - d.capRideshare) - d.increaseGroceries;
+        delta = d.reduceDiningOut * 4 + Math.max(0, bl.rideshare - d.capRideshare) - d.increaseGroceries;
         break;
       }
       case "subscriptions": {
         const d = scenario.inputs.data;
-        const cancelledSavings = DEFAULT_SUBSCRIPTIONS.reduce(
+        const cancelledSavings = bl.subscriptions.reduce(
           (acc, sub) => acc + (d.toggles[sub.name] === false ? sub.cost : 0), 0
         );
         delta = cancelledSavings;
@@ -169,7 +164,6 @@ export function generateScenarioForecast(
       }
     }
 
-    // Apply delta to the right metric
     switch (metric) {
       case "balance":
         return { month: point.month, value: Math.round(point.value + delta * (i + 1)) };
@@ -178,8 +172,8 @@ export function generateScenarioForecast(
       case "expenses":
         return { month: point.month, value: Math.round(point.value - delta) };
       case "savings": {
-        const newExpenses = BASELINE.monthlyExpenses - delta;
-        const rate = ((BASELINE.monthlyIncome - newExpenses) / BASELINE.monthlyIncome) * 100;
+        const newExpenses = bl.monthlyExpenses - delta;
+        const rate = ((bl.monthlyIncome - newExpenses) / bl.monthlyIncome) * 100;
         return { month: point.month, value: Math.round(rate) };
       }
     }
@@ -188,14 +182,14 @@ export function generateScenarioForecast(
 
 // ─── Suggestion Engine ──────────────────────────────────────────────────────
 
-export function generateSuggestions(scenarios: Scenario[]): string[] {
+export function generateSuggestions(scenarios: Scenario[], bl: SimulationBaseline): string[] {
   const suggestions: string[] = [];
 
   for (const s of scenarios) {
     switch (s.inputs.type) {
       case "subscriptions": {
         const subData = s.inputs.data as SubscriptionInputs;
-        const cancelled = DEFAULT_SUBSCRIPTIONS.filter(
+        const cancelled = bl.subscriptions.filter(
           sub => subData.toggles[sub.name] === false
         );
         if (cancelled.length > 0) {
@@ -209,14 +203,14 @@ export function generateSuggestions(scenarios: Scenario[]): string[] {
         if (d.reduceDiningOut > 0) {
           suggestions.push(`Cutting dining out by $${d.reduceDiningOut}/wk saves ~$${(d.reduceDiningOut * 4).toFixed(0)}/mo`);
         }
-        if (d.capRideshare < BASELINE.rideshare) {
-          suggestions.push(`Capping rideshare to $${d.capRideshare}/mo saves ~$${(BASELINE.rideshare - d.capRideshare).toFixed(0)}/mo`);
+        if (d.capRideshare < bl.rideshare) {
+          suggestions.push(`Capping rideshare to $${d.capRideshare}/mo saves ~$${(bl.rideshare - d.capRideshare).toFixed(0)}/mo`);
         }
         break;
       }
       case "budgeting": {
         const d = s.inputs.data;
-        suggestions.push(`${d.savings}% savings rate targets ~$${Math.round(BASELINE.monthlyIncome * d.savings / 100)}/mo saved`);
+        suggestions.push(`${d.savings}% savings rate targets ~$${Math.round(bl.monthlyIncome * d.savings / 100)}/mo saved`);
         break;
       }
       case "income": {
@@ -273,10 +267,9 @@ export function generateQuestion(scenarios: Scenario[], metric: ForecastMetric):
 
 // ─── NLP Parser (demo) ─────────────────────────────────────────────────────
 
-export function parseNLPScenario(text: string): ScenarioInputs | null {
+export function parseNLPScenario(text: string, bl: SimulationBaseline): ScenarioInputs | null {
   const lower = text.toLowerCase();
 
-  // Try to match habit patterns
   const diningMatch = lower.match(/(?:cut|reduce|lower)\s+(?:dining|eating)\s+(?:out\s+)?(?:by\s+)?\$?(\d+)/);
   const rideshareMatch = lower.match(/(?:cap|limit)\s+(?:rideshare|uber|lyft)\s+(?:to\s+)?\$?(\d+)/);
   const groceryMatch = lower.match(/(?:increase|raise|add)\s+(?:grocer\w*)\s+(?:by\s+)?\$?(\d+)/);
@@ -286,23 +279,21 @@ export function parseNLPScenario(text: string): ScenarioInputs | null {
       type: "habits",
       data: {
         reduceDiningOut: diningMatch ? parseInt(diningMatch[1]) : 0,
-        capRideshare: rideshareMatch ? parseInt(rideshareMatch[1]) : BASELINE.rideshare,
+        capRideshare: rideshareMatch ? parseInt(rideshareMatch[1]) : bl.rideshare,
         increaseGroceries: groceryMatch ? parseInt(groceryMatch[1]) : 0,
       },
     };
   }
 
-  // Try to match subscription cancellations
   const cancelMatch = lower.match(/cancel\s+([\w\s,+]+)/);
   if (cancelMatch) {
     const toggles: Record<string, boolean> = {};
-    DEFAULT_SUBSCRIPTIONS.forEach(sub => {
+    bl.subscriptions.forEach(sub => {
       toggles[sub.name] = !cancelMatch[1].toLowerCase().includes(sub.name.toLowerCase());
     });
     return { type: "subscriptions", data: { toggles } };
   }
 
-  // Try to match income
   const incomeMatch = lower.match(/(?:add|earn|get)\s+(?:extra\s+)?\$?(\d+).*?(?:month|mo)\s*(\d+)?/);
   if (incomeMatch) {
     return {
@@ -314,7 +305,6 @@ export function parseNLPScenario(text: string): ScenarioInputs | null {
     };
   }
 
-  // Try to match one-time purchase
   const purchaseMatch = lower.match(/(?:buy|purchase|spend)\s+\$?(\d+).*?month\s*(\d+)?/);
   if (purchaseMatch) {
     return {
