@@ -11,7 +11,7 @@ const MetricCard = ({ title, value, subtitle, valueColor, badge, badgeColor }: M
   return (
     <div className="quantra-card px-6 py-5 flex-1 min-w-[180px]">
       <p className="text-sm text-muted-foreground mb-1.5">{title}</p>
-      <div className="flex items-baseline gap-2">
+      <div className="flex items-baseline gap-2 flex-wrap">
         <p className={`text-2xl font-semibold tracking-tight ${valueColor || "text-foreground"}`}>
           {value}
         </p>
