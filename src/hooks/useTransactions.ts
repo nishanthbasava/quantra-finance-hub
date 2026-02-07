@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { useData } from "@/contexts/DataContext";
-import type { Transaction } from "@/data/transactionData";
 
 export type SortField = "date" | "amount";
 export type SortDir = "asc" | "desc";

@@ -1,7 +1,47 @@
-import { createContext, useContext, useState, useMemo, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useMemo, useCallback, useRef, useEffect, type ReactNode } from "react";
 import { getSeedInfo, toggleLockSeed, regenerateSeed, type SeedInfo } from "@/lib/rng";
-import { generatePersona, generateTransactions, computeBaseline, type Persona, type AggregatedBaseline } from "@/data/syntheticEngine";
+import { generatePersona, generateTransactions, computeBaseline, type AggregatedBaseline } from "@/data/syntheticEngine";
 import type { Transaction } from "@/data/transactionData";
+
+// ─── Time Range ─────────────────────────────────────────────────────────────
+
+export type TimeRange = "7d" | "30d" | "90d" | "ytd" | "all";
+
+export const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
+  { value: "7d", label: "Last 7 Days" },
+  { value: "30d", label: "Last 30 Days" },
+  { value: "90d", label: "Last 90 Days" },
+  { value: "ytd", label: "Year to Date" },
+  { value: "all", label: "All Time" },
+];
+
+function getStoredTimeRange(): TimeRange {
+  const stored = localStorage.getItem("quantra_time_range");
+  if (stored && TIME_RANGE_OPTIONS.some(o => o.value === stored)) return stored as TimeRange;
+  return "90d";
+}
+
+function getDateCutoff(range: TimeRange): string | null {
+  const now = new Date();
+  switch (range) {
+    case "7d": {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 7);
+      return d.toISOString().slice(0, 10);
+    }
+    case "30d": {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 30);
+      return d.toISOString().slice(0, 10);
+    }
+    case "90d":
+      return null; // no filter — all generated data is 90 days
+    case "ytd":
+      return `${now.getFullYear()}-01-01`;
+    case "all":
+      return null;
+  }
+}
 
 // ─── Sankey Aggregation ─────────────────────────────────────────────────────
 
@@ -36,7 +76,6 @@ const CATEGORY_COLORS: Record<string, string> = {
 function aggregateToSankey(transactions: Transaction[]): { categories: Category[]; totalExpenses: number } {
   const expenses = transactions.filter(t => t.type === "expense");
 
-  // Build nested map: category → subcategory → subsubcategory
   const catMap = new Map<string, Map<string, Map<string, number>>>();
 
   for (const t of expenses) {
@@ -89,19 +128,26 @@ function aggregateToSankey(transactions: Transaction[]): { categories: Category[
 // ─── Context Type ───────────────────────────────────────────────────────────
 
 interface DataContextType {
+  // All generated transactions (unfiltered)
   transactions: Transaction[];
+  // Filtered by time range
+  filteredTransactions: Transaction[];
   allCategories: string[];
   allAccounts: string[];
-  // Sankey
+  // Sankey (derived from filtered)
   sankeyCategories: Category[];
   totalExpenses: number;
-  // Simulation baseline
+  // Simulation baseline (from all data)
   baseline: AggregatedBaseline;
-  // Dashboard metrics
+  // Dashboard metrics (from filtered)
   totalBalance: number;
   monthlyIncome: number;
   monthlyExpenseTotal: number;
   cashFlow: number;
+  // Time range
+  timeRange: TimeRange;
+  setTimeRange: (range: TimeRange) => void;
+  isUpdating: boolean;
   // Seed info
   seedInfo: SeedInfo;
   isLocked: boolean;
@@ -121,6 +167,9 @@ export function useData(): DataContextType {
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const [seedInfo, setSeedInfo] = useState<SeedInfo>(getSeedInfo);
+  const [timeRange, setTimeRangeState] = useState<TimeRange>(getStoredTimeRange);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const updateTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Generate persona from profile seed (stable across sessions)
   const persona = useMemo(() => generatePersona(seedInfo.profileSeed), [seedInfo.profileSeed]);
@@ -131,40 +180,78 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [persona, seedInfo.sessionSeed]
   );
 
-  // Derived data
+  // Filter transactions by time range
+  const filteredTransactions = useMemo(() => {
+    const cutoff = getDateCutoff(timeRange);
+    if (!cutoff) return transactions;
+    return transactions.filter(t => t.date >= cutoff);
+  }, [transactions, timeRange]);
+
+  // Derived data (from filtered)
   const allCategories = useMemo(
-    () => [...new Set(transactions.map(t => t.category))],
-    [transactions]
+    () => [...new Set(filteredTransactions.map(t => t.category))],
+    [filteredTransactions]
   );
   const allAccounts = useMemo(
-    () => [...new Set(transactions.map(t => t.account))],
-    [transactions]
+    () => [...new Set(filteredTransactions.map(t => t.account))],
+    [filteredTransactions]
   );
 
-  // Sankey aggregation
-  const { sankeyCategories, totalExpenses } = useMemo(
-    () => {
-      const result = aggregateToSankey(transactions);
-      return { sankeyCategories: result.categories, totalExpenses: result.totalExpenses };
-    },
-    [transactions]
-  );
+  // Sankey aggregation (from filtered)
+  const { sankeyCategories, totalExpenses } = useMemo(() => {
+    const result = aggregateToSankey(filteredTransactions);
+    return { sankeyCategories: result.categories, totalExpenses: result.totalExpenses };
+  }, [filteredTransactions]);
 
-  // Simulation baseline
+  // Simulation baseline (from ALL data for stable forecasting)
   const baseline = useMemo(
     () => computeBaseline(transactions, persona),
     [transactions, persona]
   );
 
-  // Dashboard metrics
+  // Dashboard metrics (from filtered data, normalized to monthly)
   const { totalBalance, monthlyIncome, monthlyExpenseTotal, cashFlow } = useMemo(() => {
+    const expenses = filteredTransactions.filter(t => t.type === "expense");
+    const income = filteredTransactions.filter(t => t.type === "income");
+    const totalExp = expenses.reduce((s, t) => s + t.amount, 0);
+    const totalInc = income.reduce((s, t) => s + t.amount, 0);
+
+    // Determine days in range for monthly normalization
+    const dates = filteredTransactions.map(t => t.date).sort();
+    const daysInRange = dates.length > 0
+      ? Math.max(1, Math.ceil((new Date(dates[dates.length - 1]).getTime() - new Date(dates[0]).getTime()) / 86400000) + 1)
+      : 30;
+    const monthFactor = 30 / daysInRange;
+
+    const monthlyInc = Math.round(totalInc * monthFactor);
+    const monthlyExp = Math.round(totalExp * monthFactor);
+
     return {
       totalBalance: baseline.balance,
-      monthlyIncome: baseline.monthlyIncome,
-      monthlyExpenseTotal: baseline.monthlyExpenses,
-      cashFlow: baseline.monthlyIncome - baseline.monthlyExpenses,
+      monthlyIncome: monthlyInc,
+      monthlyExpenseTotal: monthlyExp,
+      cashFlow: monthlyInc - monthlyExp,
     };
-  }, [baseline]);
+  }, [filteredTransactions, baseline]);
+
+  // Time range setter with shimmer effect
+  const setTimeRange = useCallback((range: TimeRange) => {
+    localStorage.setItem("quantra_time_range", range);
+    setIsUpdating(true);
+
+    if (updateTimerRef.current) clearTimeout(updateTimerRef.current);
+    updateTimerRef.current = setTimeout(() => {
+      setTimeRangeState(range);
+      setIsUpdating(false);
+    }, 300);
+  }, []);
+
+  // Cleanup timer
+  useEffect(() => {
+    return () => {
+      if (updateTimerRef.current) clearTimeout(updateTimerRef.current);
+    };
+  }, []);
 
   const onToggleLock = useCallback(() => {
     toggleLockSeed();
@@ -177,6 +264,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const value: DataContextType = {
     transactions,
+    filteredTransactions,
     allCategories,
     allAccounts,
     sankeyCategories,
@@ -186,6 +274,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     monthlyIncome,
     monthlyExpenseTotal,
     cashFlow,
+    timeRange,
+    setTimeRange,
+    isUpdating,
     seedInfo,
     isLocked: seedInfo.isLocked,
     onToggleLock,
