@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { totalExpenses } from "./sankey/sankeyData";
-import { useSankeyLayout, SVG_WIDTH, LEFT_X, RIGHT_X, RIGHT_BAR_Y, FLOW_GAP } from "./sankey/useSankeyLayout";
+import { useSankeyLayout, SVG_WIDTH, LEFT_X, RIGHT_X, RIGHT_BAR_Y, COLLAPSED_GAP } from "./sankey/useSankeyLayout";
 import SankeyFlowPath from "./sankey/SankeyFlowPath";
 import SankeyNode from "./sankey/SankeyNode";
 import SankeyTooltip from "./sankey/SankeyTooltip";
@@ -22,7 +22,7 @@ const SankeyDiagram = () => {
   const { flowItems, barPositions, rightFlowPositions, svgHeight, totalAmount } = useSankeyLayout(expandedCategories);
 
   const availableHeight = svgHeight - 40;
-  const rightBarHeight = availableHeight - FLOW_GAP;
+  const rightBarHeight = availableHeight - COLLAPSED_GAP;
 
   const toggleCategory = useCallback((name: string) => {
     setExpandedCategories((prev) => {
