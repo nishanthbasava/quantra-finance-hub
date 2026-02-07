@@ -22,6 +22,8 @@ interface SelectionContextType {
   selectedTransactions: Map<string, SelectedTransaction>;
   toggleNode: (node: SelectedSankeyNode) => void;
   toggleTransaction: (tx: SelectedTransaction) => void;
+  removeNode: (id: string) => void;
+  removeTransaction: (id: string) => void;
   clearAll: () => void;
   totalSelected: number;
 }
@@ -67,6 +69,22 @@ export const SelectionProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
 
+  const removeNode = useCallback((id: string) => {
+    setSelectedNodes((prev) => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const removeTransaction = useCallback((id: string) => {
+    setSelectedTransactions((prev) => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
   const clearAll = useCallback(() => {
     setSelectedNodes(new Map());
     setSelectedTransactions(new Map());
@@ -83,6 +101,8 @@ export const SelectionProvider = ({ children }: { children: ReactNode }) => {
         selectedTransactions,
         toggleNode,
         toggleTransaction,
+        removeNode,
+        removeTransaction,
         clearAll,
         totalSelected,
       }}
