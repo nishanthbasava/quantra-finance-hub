@@ -1,7 +1,9 @@
 import { createContext, useContext, useState, useMemo, useCallback, useRef, useEffect, type ReactNode } from "react";
 import { getSeedInfo, toggleLockSeed, regenerateSeed, type SeedInfo } from "@/lib/rng";
-import { generatePersona, generateTransactions, computeBaseline, type AggregatedBaseline } from "@/data/syntheticEngine";
+import { computeBaseline, type AggregatedBaseline } from "@/data/syntheticEngine";
+import { getDemoData } from "@/data/demoDataStore";
 import type { Transaction } from "@/data/transactionData";
+import type { BalanceSnapshot } from "@/quant/types";
 
 // ─── Time Range ─────────────────────────────────────────────────────────────
 
@@ -40,6 +42,20 @@ function getDateCutoff(range: TimeRange): string | null {
       return `${now.getFullYear()}-01-01`;
     case "all":
       return null;
+  }
+}
+
+function getTimeRangeDays(range: TimeRange): number {
+  switch (range) {
+    case "7d": return 7;
+    case "30d": return 30;
+    case "90d": return 90;
+    case "ytd": {
+      const now = new Date();
+      const jan1 = new Date(now.getFullYear(), 0, 1);
+      return Math.ceil((now.getTime() - jan1.getTime()) / 86400000);
+    }
+    case "all": return 365;
   }
 }
 
@@ -132,6 +148,8 @@ interface DataContextType {
   transactions: Transaction[];
   // Filtered by time range
   filteredTransactions: Transaction[];
+  // Daily balance snapshots
+  balances: BalanceSnapshot[];
   allCategories: string[];
   allAccounts: string[];
   // Sankey (derived from filtered)
@@ -146,6 +164,7 @@ interface DataContextType {
   cashFlow: number;
   // Time range
   timeRange: TimeRange;
+  timeRangeDays: number;
   setTimeRange: (range: TimeRange) => void;
   isUpdating: boolean;
   // Seed info
@@ -171,14 +190,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [isUpdating, setIsUpdating] = useState(false);
   const updateTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Generate persona from profile seed (stable across sessions)
-  const persona = useMemo(() => generatePersona(seedInfo.profileSeed), [seedInfo.profileSeed]);
-
-  // Generate transactions from session seed (varies per load)
-  const transactions = useMemo(
-    () => generateTransactions(persona, seedInfo.sessionSeed),
-    [persona, seedInfo.sessionSeed]
+  // Generate demo data including balances
+  const demoData = useMemo(
+    () => getDemoData(seedInfo),
+    [seedInfo]
   );
+  const { transactions, balances } = demoData;
+
+  // Derived persona + baseline from demoData
+  const persona = demoData.persona;
 
   // Filter transactions by time range
   const filteredTransactions = useMemo(() => {
@@ -208,6 +228,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     () => computeBaseline(transactions, persona),
     [transactions, persona]
   );
+
+  // Time range days for quant engine
+  const timeRangeDays = useMemo(() => getTimeRangeDays(timeRange), [timeRange]);
 
   // Dashboard metrics (from filtered data, normalized to monthly)
   const { totalBalance, monthlyIncome, monthlyExpenseTotal, cashFlow } = useMemo(() => {
@@ -265,6 +288,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const value: DataContextType = {
     transactions,
     filteredTransactions,
+    balances,
     allCategories,
     allAccounts,
     sankeyCategories,
@@ -275,6 +299,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     monthlyExpenseTotal,
     cashFlow,
     timeRange,
+    timeRangeDays,
     setTimeRange,
     isUpdating,
     seedInfo,
