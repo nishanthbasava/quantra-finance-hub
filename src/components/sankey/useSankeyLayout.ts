@@ -17,10 +17,11 @@ export interface SankeyLayout {
 const SVG_WIDTH = 700;
 const LEFT_X = 200;
 const RIGHT_X = SVG_WIDTH - 80;
-const FLOW_GAP = 4;
+const COLLAPSED_GAP = 10;
+const EXPANDED_GAP = 22;
 const RIGHT_BAR_Y = 20;
 
-export { SVG_WIDTH, LEFT_X, RIGHT_X, FLOW_GAP, RIGHT_BAR_Y };
+export { SVG_WIDTH, LEFT_X, RIGHT_X, COLLAPSED_GAP, EXPANDED_GAP, RIGHT_BAR_Y };
 
 export function useSankeyLayout(expandedCategories: Set<string>): SankeyLayout {
   const flowItems = useMemo(() => {
@@ -51,20 +52,33 @@ export function useSankeyLayout(expandedCategories: Set<string>): SankeyLayout {
     return items;
   }, [expandedCategories]);
 
-  const svgHeight = Math.max(400, flowItems.length * 52 + 40);
+  // Calculate total gap space needed
+  const totalGapSpace = useMemo(() => {
+    let gap = 0;
+    for (let i = 0; i < flowItems.length - 1; i++) {
+      gap += flowItems[i].isSub || flowItems[i + 1]?.isSub ? EXPANDED_GAP : COLLAPSED_GAP;
+    }
+    return gap;
+  }, [flowItems]);
+
+  const svgHeight = Math.max(400, flowItems.length * 48 + totalGapSpace + 60);
   const availableHeight = svgHeight - 40;
   const totalAmount = flowItems.reduce((s, i) => s + i.amount, 0);
-  const rightBarHeight = availableHeight - FLOW_GAP;
+  const rightBarHeight = availableHeight - COLLAPSED_GAP;
 
   const barPositions = useMemo(() => {
+    const usableHeight = availableHeight - totalGapSpace;
     let yOffset = 20;
-    return flowItems.map((item) => {
-      const h = Math.max(12, (item.amount / totalAmount) * availableHeight - FLOW_GAP);
+    return flowItems.map((item, i) => {
+      const h = Math.max(16, (item.amount / totalAmount) * usableHeight);
       const pos = { y: yOffset, height: h };
-      yOffset += h + FLOW_GAP;
+      const nextGap = i < flowItems.length - 1
+        ? (item.isSub || flowItems[i + 1]?.isSub ? EXPANDED_GAP : COLLAPSED_GAP)
+        : 0;
+      yOffset += h + nextGap;
       return pos;
     });
-  }, [flowItems, totalAmount, availableHeight]);
+  }, [flowItems, totalAmount, availableHeight, totalGapSpace]);
 
   const rightFlowPositions = useMemo(() => {
     let rOffset = RIGHT_BAR_Y;
