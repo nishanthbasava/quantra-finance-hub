@@ -18,10 +18,10 @@ const Dashboard = () => {
       {/* Hero */}
       <section className="pt-16 pb-10 text-center animate-fade-in">
         <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-foreground mb-4">
-          Track your money.
+          Turn financial data into decisions.
         </h1>
         <p className="text-lg text-muted-foreground max-w-md mx-auto">
-          Get a clear view of your finances. Ask Quantra anything.
+          Get a clear view of your finances with AI-powered analytics. Ask Quantra anything.
         </p>
       </section>
 
