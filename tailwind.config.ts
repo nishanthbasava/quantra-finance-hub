@@ -59,6 +59,8 @@ export default {
           purple: "hsl(var(--quantra-purple))",
           orange: "hsl(var(--quantra-orange))",
           pink: "hsl(var(--quantra-pink))",
+          select: "hsl(var(--quantra-select))",
+          "select-foreground": "hsl(var(--quantra-select-foreground))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",

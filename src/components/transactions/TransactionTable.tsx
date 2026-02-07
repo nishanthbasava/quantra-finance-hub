@@ -1,6 +1,7 @@
-import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, Check } from "lucide-react";
 import type { Transaction } from "@/data/transactionData";
 import type { SortField, SortDir } from "@/hooks/useTransactions";
+import { useSelection } from "@/contexts/SelectionContext";
 
 interface TransactionTableProps {
   transactions: Transaction[];
@@ -18,6 +19,8 @@ const SortIcon = ({ field, active, dir }: { field: SortField; active: boolean; d
 };
 
 const TransactionTable = ({ transactions, sortField, sortDir, onToggleSort, onRowClick }: TransactionTableProps) => {
+  const { selectMode, selectedTransactions, toggleTransaction } = useSelection();
+
   const formatDate = (d: string) => {
     const date = new Date(d + "T00:00:00");
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -29,6 +32,9 @@ const TransactionTable = ({ transactions, sortField, sortDir, onToggleSort, onRo
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border/60 bg-muted/30 sticky top-0 z-10">
+              {selectMode && (
+                <th className="w-10 px-3 py-3" />
+              )}
               <th
                 className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors select-none"
                 onClick={() => onToggleSort("date")}
@@ -60,41 +66,73 @@ const TransactionTable = ({ transactions, sortField, sortDir, onToggleSort, onRo
             </tr>
           </thead>
           <tbody>
-            {transactions.map((t) => (
-              <tr
-                key={t.id}
-                onClick={() => onRowClick(t)}
-                className="border-b border-border/30 hover:bg-muted/20 cursor-pointer transition-colors"
-              >
-                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                  {formatDate(t.date)}
-                </td>
-                <td className="px-4 py-3 font-medium text-foreground">
-                  {t.merchant}
-                </td>
-                <td className="px-4 py-3 text-muted-foreground">
-                  {t.category}
-                </td>
-                <td className="px-4 py-3 text-muted-foreground text-xs">
-                  {t.account}
-                </td>
-                <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${t.type === "income" ? "text-quantra-green" : "text-foreground"}`}>
-                  {t.type === "income" ? "+" : "−"}${t.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
-                    t.type === "income"
-                      ? "bg-quantra-green/10 text-quantra-green"
-                      : "bg-muted text-muted-foreground"
-                  }`}>
-                    {t.type}
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {transactions.map((t) => {
+              const isSelected = selectedTransactions.has(t.id);
+              return (
+                <tr
+                  key={t.id}
+                  onClick={() => {
+                    if (selectMode) {
+                      toggleTransaction({
+                        id: t.id,
+                        merchant: t.merchant,
+                        amount: t.amount,
+                        category: t.category,
+                      });
+                    } else {
+                      onRowClick(t);
+                    }
+                  }}
+                  className={`border-b border-border/30 cursor-pointer transition-colors ${
+                    isSelected
+                      ? "bg-quantra-select/10 hover:bg-quantra-select/15"
+                      : "hover:bg-muted/20"
+                  }`}
+                >
+                  {/* Selection indicator */}
+                  {selectMode && (
+                    <td className="w-10 px-3 py-3">
+                      <span
+                        className={`inline-flex items-center justify-center h-4 w-4 rounded border transition-all ${
+                          isSelected
+                            ? "bg-quantra-select border-quantra-select"
+                            : "border-border"
+                        }`}
+                      >
+                        {isSelected && <Check className="h-3 w-3 text-quantra-select-foreground" />}
+                      </span>
+                    </td>
+                  )}
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                    {formatDate(t.date)}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-foreground">
+                    {t.merchant}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {t.category}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">
+                    {t.account}
+                  </td>
+                  <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${t.type === "income" ? "text-quantra-green" : "text-foreground"}`}>
+                    {t.type === "income" ? "+" : "−"}${t.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
+                      t.type === "income"
+                        ? "bg-quantra-green/10 text-quantra-green"
+                        : "bg-muted text-muted-foreground"
+                    }`}>
+                      {t.type}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
             {transactions.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                <td colSpan={selectMode ? 7 : 6} className="px-4 py-12 text-center text-muted-foreground">
                   No transactions match your filters.
                 </td>
               </tr>

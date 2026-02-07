@@ -5,8 +5,10 @@ import { useMultiLevelLayout, COLUMN_SPACING, LABEL_AREA, NODE_WIDTH } from "./s
 import MultiLevelFlowPath from "./sankey/MultiLevelFlowPath";
 import MultiLevelNode from "./sankey/MultiLevelNode";
 import MultiLevelTooltip from "./sankey/MultiLevelTooltip";
+import { useSelection } from "@/contexts/SelectionContext";
 
 const SankeyDiagram = () => {
+  const { selectMode, selectedNodes, toggleNode } = useSelection();
   const [expandedL1, setExpandedL1] = useState<Set<string>>(new Set());
   const [expandedL2, setExpandedL2] = useState<Set<string>>(new Set());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -308,9 +310,20 @@ const SankeyDiagram = () => {
                     isFaded={state.isFaded}
                     isHovered={state.isHovered}
                     isExpanded={isExpanded}
+                    isSelected={selectedNodes.has(node.id)}
                     hasChildren={hasChildren}
                     maxDepth={maxDepth}
+                    selectMode={selectMode}
                     onClick={() => handleNodeClick(node)}
+                    onSelectClick={() =>
+                      toggleNode({
+                        id: node.id,
+                        label: node.label,
+                        depth: node.depth,
+                        categoryName: node.categoryName,
+                        amount: node.amount,
+                      })
+                    }
                     onMouseEnter={() => handleNodeHover(node)}
                     onMouseLeave={handleNodeLeave}
                   />

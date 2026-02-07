@@ -9,9 +9,12 @@ interface MultiLevelNodeProps {
   isFaded: boolean;
   isHovered: boolean;
   isExpanded: boolean;
+  isSelected: boolean;
   hasChildren: boolean;
   maxDepth: number;
+  selectMode: boolean;
   onClick: () => void;
+  onSelectClick: () => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
 }
@@ -23,9 +26,12 @@ const MultiLevelNode = ({
   isFaded,
   isHovered,
   isExpanded,
+  isSelected,
   hasChildren,
   maxDepth,
+  selectMode,
   onClick,
+  onSelectClick,
   onMouseEnter,
   onMouseLeave,
 }: MultiLevelNodeProps) => {
@@ -33,13 +39,19 @@ const MultiLevelNode = ({
   const depthMute = node.depth < maxDepth ? 0.7 : 1;
   const baseOpacity = isFaded ? 0.2 : depthMute;
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (selectMode) {
+      onSelectClick();
+    } else if (hasChildren) {
+      onClick();
+    }
+  };
+
   return (
     <g
-      className={hasChildren ? "cursor-pointer" : "cursor-default"}
-      onClick={(e) => {
-        e.stopPropagation();
-        if (hasChildren) onClick();
-      }}
+      className={selectMode ? "cursor-pointer" : hasChildren ? "cursor-pointer" : "cursor-default"}
+      onClick={handleClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -58,8 +70,26 @@ const MultiLevelNode = ({
         transition={{ duration: 0.4, ease: "easeInOut" }}
       />
 
+      {/* Selection glow */}
+      {isSelected && (
+        <motion.rect
+          x={position.x - 3}
+          width={barWidth + 6}
+          rx={(barWidth + 6) / 2}
+          fill="hsl(42, 92%, 56%)"
+          initial={{ y: position.y - 2, height: position.height + 4, opacity: 0 }}
+          animate={{
+            y: position.y - 2,
+            height: position.height + 4,
+            opacity: 0.45,
+          }}
+          transition={{ duration: 0.3 }}
+          style={{ filter: "blur(6px)" }}
+        />
+      )}
+
       {/* Glow effect on highlight */}
-      {isHighlighted && (
+      {isHighlighted && !isSelected && (
         <motion.rect
           x={position.x - 2}
           width={barWidth + 4}
