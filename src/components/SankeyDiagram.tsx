@@ -1,86 +1,30 @@
-import { useState, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-
-interface SubCategory {
-  name: string;
-  amount: number;
-}
-
-interface Category {
-  name: string;
-  amount: number;
-  color: string;
-  subcategories: SubCategory[];
-}
-
-const categories: Category[] = [
-  {
-    name: "Shopping",
-    amount: 912,
-    color: "hsl(260, 50%, 65%)",
-    subcategories: [
-      { name: "Clothing", amount: 420 },
-      { name: "Electronics", amount: 312 },
-      { name: "Home", amount: 180 },
-    ],
-  },
-  {
-    name: "Food",
-    amount: 647,
-    color: "hsl(170, 65%, 48%)",
-    subcategories: [
-      { name: "Groceries", amount: 380 },
-      { name: "Dining Out", amount: 187 },
-      { name: "Coffee", amount: 80 },
-    ],
-  },
-  {
-    name: "Travel",
-    amount: 512,
-    color: "hsl(200, 70%, 55%)",
-    subcategories: [
-      { name: "Flights", amount: 290 },
-      { name: "Hotels", amount: 142 },
-      { name: "Transport", amount: 80 },
-    ],
-  },
-  {
-    name: "Bills & Utilities",
-    amount: 424,
-    color: "hsl(215, 45%, 55%)",
-    subcategories: [
-      { name: "Electricity", amount: 145 },
-      { name: "Internet", amount: 89 },
-      { name: "Water", amount: 65 },
-      { name: "Phone", amount: 125 },
-    ],
-  },
-  {
-    name: "Subscriptions",
-    amount: 188,
-    color: "hsl(185, 55%, 50%)",
-    subcategories: [
-      { name: "Streaming", amount: 45 },
-      { name: "Software", amount: 89 },
-      { name: "Gym", amount: 54 },
-    ],
-  },
-  {
-    name: "Other",
-    amount: 66,
-    color: "hsl(210, 20%, 70%)",
-    subcategories: [
-      { name: "Miscellaneous", amount: 66 },
-    ],
-  },
-];
-
-const totalExpenses = categories.reduce((sum, c) => sum + c.amount, 0);
+import { useState, useCallback, useRef } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { totalExpenses } from "./sankey/sankeyData";
+import { useSankeyLayout, SVG_WIDTH, LEFT_X, RIGHT_X, RIGHT_BAR_Y, FLOW_GAP } from "./sankey/useSankeyLayout";
+import SankeyFlowPath from "./sankey/SankeyFlowPath";
+import SankeyNode from "./sankey/SankeyNode";
+import SankeyTooltip from "./sankey/SankeyTooltip";
 
 const SankeyDiagram = () => {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  const [focusedCategory, setFocusedCategory] = useState<string | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    key: string;
+  }>({ visible: false, x: 0, y: 0, key: "" });
 
-  const toggleCategory = (name: string) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const { flowItems, barPositions, rightFlowPositions, svgHeight, totalAmount } = useSankeyLayout(expandedCategories);
+
+  const availableHeight = svgHeight - 40;
+  const rightBarHeight = availableHeight - FLOW_GAP;
+
+  const toggleCategory = useCallback((name: string) => {
     setExpandedCategories((prev) => {
       const next = new Set(prev);
       if (next.has(name)) {
@@ -90,87 +34,67 @@ const SankeyDiagram = () => {
       }
       return next;
     });
-  };
+  }, []);
 
-  // Build flow items: either collapsed category or expanded subcategories
-  const flowItems = useMemo(() => {
-    const items: { key: string; label: string; amount: number; color: string; parentName: string; isSub: boolean }[] = [];
-    categories.forEach((cat) => {
-      if (expandedCategories.has(cat.name)) {
-        cat.subcategories.forEach((sub) => {
-          items.push({
-            key: `${cat.name}-${sub.name}`,
-            label: sub.name,
-            amount: sub.amount,
-            color: cat.color,
-            parentName: cat.name,
-            isSub: true,
-          });
-        });
-      } else {
-        items.push({
-          key: cat.name,
-          label: cat.name,
-          amount: cat.amount,
-          color: cat.color,
-          parentName: cat.name,
-          isSub: false,
-        });
+  const handleNodeClick = useCallback((parentName: string) => {
+    toggleCategory(parentName);
+    setFocusedCategory((prev) => (prev === parentName ? null : parentName));
+  }, [toggleCategory]);
+
+  const handleBackgroundClick = useCallback(() => {
+    setFocusedCategory(null);
+  }, []);
+
+  const handleFlowHover = useCallback((key: string, index: number) => {
+    setHoveredKey(key);
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const svgRect = containerRef.current.querySelector("svg")?.getBoundingClientRect();
+      if (svgRect) {
+        const scaleX = svgRect.width / SVG_WIDTH;
+        const scaleY = svgRect.height / svgHeight;
+        const item = flowItems[index];
+        const barPos = barPositions[index];
+        const tooltipX = (LEFT_X + 30) * scaleX;
+        const tooltipY = barPos.y * scaleY - 10;
+        setTooltip({ visible: true, x: tooltipX, y: tooltipY, key });
       }
-    });
-    return items;
-  }, [expandedCategories]);
+    }
+  }, [flowItems, barPositions, svgHeight]);
 
-  const svgWidth = 700;
-  const svgHeight = Math.max(400, flowItems.length * 52 + 40);
-  const leftX = 200;
-  const rightX = svgWidth - 80;
-  const flowGap = 4;
+  const handleFlowLeave = useCallback(() => {
+    setHoveredKey(null);
+    setTooltip((t) => ({ ...t, visible: false }));
+  }, []);
 
-  // Calculate positions
-  const totalAmount = flowItems.reduce((s, i) => s + i.amount, 0);
-  const availableHeight = svgHeight - 40;
-  const barPositions = useMemo(() => {
-    let yOffset = 20;
-    return flowItems.map((item) => {
-      const h = Math.max(12, (item.amount / totalAmount) * availableHeight - flowGap);
-      const pos = { y: yOffset, height: h };
-      yOffset += h + flowGap;
-      return pos;
-    });
-  }, [flowItems, totalAmount, availableHeight]);
+  // Determine highlight/fade state
+  const getItemState = (item: typeof flowItems[0]) => {
+    const hasHover = hoveredKey !== null;
+    const hasFocus = focusedCategory !== null;
 
-  // Right side: single bar
-  const rightBarY = 20;
-  const rightBarHeight = availableHeight - flowGap;
+    const isHovered = hoveredKey === item.key;
+    const isFocusMatch = focusedCategory === item.parentName;
 
-  const createFlowPath = (leftY: number, leftH: number, rightY: number, rightH: number) => {
-    const x1 = leftX + 10;
-    const x2 = rightX - 10;
-    const cpx = (x1 + x2) / 2;
+    const isHighlighted = isHovered || (hasFocus && isFocusMatch && !hasHover);
+    const isFaded =
+      (hasHover && !isHovered) ||
+      (hasFocus && !isFocusMatch && !hasHover);
 
-    return `
-      M ${x1} ${leftY}
-      C ${cpx} ${leftY}, ${cpx} ${rightY}, ${x2} ${rightY}
-      L ${x2} ${rightY + rightH}
-      C ${cpx} ${rightY + rightH}, ${cpx} ${leftY + leftH}, ${x1} ${leftY + leftH}
-      Z
-    `;
+    return { isHighlighted, isFaded, isHovered };
   };
 
-  // Calculate right-side offsets for flows
-  const rightFlowPositions = useMemo(() => {
-    let rOffset = rightBarY;
-    return flowItems.map((item) => {
-      const h = (item.amount / totalAmount) * rightBarHeight;
-      const pos = { y: rOffset, height: h };
-      rOffset += h;
-      return pos;
-    });
-  }, [flowItems, totalAmount, rightBarHeight]);
+  // Hint text
+  const anyExpanded = expandedCategories.size > 0;
+  const hintText = focusedCategory
+    ? `Viewing ${focusedCategory} · Click background to reset`
+    : anyExpanded
+      ? "Click a category to collapse · Click background to reset"
+      : "Click a category to expand subcategories";
+
+  const hoveredItem = hoveredKey ? flowItems.find((f) => f.key === hoveredKey) : null;
 
   return (
-    <div className="quantra-card p-6 overflow-hidden">
+    <div className="quantra-card p-6 overflow-hidden" ref={containerRef}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -183,130 +107,146 @@ const SankeyDiagram = () => {
       {/* Sankey */}
       <div className="relative overflow-x-auto">
         <svg
-          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          viewBox={`0 0 ${SVG_WIDTH} ${svgHeight}`}
           className="w-full"
           style={{ minHeight: "350px" }}
+          onClick={handleBackgroundClick}
         >
           <defs>
-            {flowItems.map((item, i) => (
-              <linearGradient
-                key={`grad-${item.key}`}
-                id={`flow-grad-${i}`}
-                x1="0%"
-                y1="0%"
-                x2="100%"
-                y2="0%"
-              >
-                <stop offset="0%" stopColor={item.color} stopOpacity="0.6" />
-                <stop offset="100%" stopColor={item.color} stopOpacity="0.2" />
-              </linearGradient>
-            ))}
+            {flowItems.map((item, i) => {
+              const state = getItemState(item);
+              return (
+                <linearGradient
+                  key={`grad-${item.key}`}
+                  id={`flow-grad-${i}`}
+                  x1="0%"
+                  y1="0%"
+                  x2="100%"
+                  y2="0%"
+                >
+                  <stop
+                    offset="0%"
+                    stopColor={item.color}
+                    stopOpacity={state.isHighlighted ? 0.85 : 0.55}
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor={item.color}
+                    stopOpacity={state.isHighlighted ? 0.45 : 0.15}
+                  />
+                </linearGradient>
+              );
+            })}
           </defs>
 
+          {/* Background click catcher */}
+          <rect
+            x={0}
+            y={0}
+            width={SVG_WIDTH}
+            height={svgHeight}
+            fill="transparent"
+          />
+
           {/* Flow paths */}
-          <AnimatePresence mode="wait">
-            {flowItems.map((item, i) => (
-              <motion.path
-                key={item.key}
-                d={createFlowPath(
-                  barPositions[i].y,
-                  barPositions[i].height,
-                  rightFlowPositions[i].y,
-                  rightFlowPositions[i].height
-                )}
-                fill={`url(#flow-grad-${i})`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.4, ease: "easeInOut" }}
-              />
-            ))}
+          <AnimatePresence mode="popLayout">
+            {flowItems.map((item, i) => {
+              const state = getItemState(item);
+              return (
+                <SankeyFlowPath
+                  key={item.key}
+                  leftY={barPositions[i].y}
+                  leftH={barPositions[i].height}
+                  rightY={rightFlowPositions[i].y}
+                  rightH={rightFlowPositions[i].height}
+                  gradientId={`flow-grad-${i}`}
+                  isHighlighted={state.isHighlighted}
+                  isFaded={state.isFaded}
+                  onMouseEnter={() => handleFlowHover(item.key, i)}
+                  onMouseLeave={handleFlowLeave}
+                />
+              );
+            })}
           </AnimatePresence>
 
-          {/* Left bars */}
-          {flowItems.map((item, i) => (
-            <g key={`left-${item.key}`}>
-              <motion.rect
-                x={leftX - 4}
-                y={barPositions[i].y}
-                width={4}
-                height={barPositions[i].height}
-                rx={2}
-                fill={item.color}
-                initial={{ scaleY: 0 }}
-                animate={{ scaleY: 1 }}
-                transition={{ duration: 0.3, delay: i * 0.03 }}
-                style={{ originY: "0" }}
+          {/* Left nodes */}
+          {flowItems.map((item, i) => {
+            const state = getItemState(item);
+            return (
+              <SankeyNode
+                key={`node-${item.key}`}
+                itemKey={item.key}
+                label={item.label}
+                amount={item.amount}
+                color={item.color}
+                isSub={item.isSub}
+                parentName={item.parentName}
+                index={i}
+                position={barPositions[i]}
+                isFocused={state.isHighlighted}
+                isFaded={state.isFaded}
+                isHovered={state.isHovered}
+                onClick={() => handleNodeClick(item.parentName)}
+                onMouseEnter={() => handleFlowHover(item.key, i)}
+                onMouseLeave={handleFlowLeave}
               />
-            </g>
-          ))}
-
-          {/* Left labels */}
-          {flowItems.map((item, i) => (
-            <g
-              key={`label-${item.key}`}
-              className="cursor-pointer"
-              onClick={() => toggleCategory(item.parentName)}
-            >
-              <text
-                x={leftX - 16}
-                y={barPositions[i].y + barPositions[i].height / 2 - 4}
-                textAnchor="end"
-                className="text-[13px] font-medium fill-foreground"
-              >
-                {item.isSub ? `  ${item.label}` : item.label}
-              </text>
-              <text
-                x={leftX - 16}
-                y={barPositions[i].y + barPositions[i].height / 2 + 12}
-                textAnchor="end"
-                className="text-[11px] fill-muted-foreground"
-              >
-                ${item.amount.toLocaleString()}
-              </text>
-              {/* Invisible hover rect */}
-              <rect
-                x={0}
-                y={barPositions[i].y - 2}
-                width={leftX}
-                height={barPositions[i].height + 4}
-                fill="transparent"
-              />
-            </g>
-          ))}
+            );
+          })}
 
           {/* Right total bar */}
-          <rect
-            x={rightX - 6}
-            y={rightBarY}
+          <motion.rect
+            x={RIGHT_X - 6}
+            y={RIGHT_BAR_Y}
             width={6}
             rx={3}
             height={rightBarHeight}
             className="fill-muted-foreground/20"
+            animate={{ height: rightBarHeight }}
+            transition={{ duration: 0.35 }}
           />
 
           {/* Right label */}
           <text
-            x={rightX + 12}
-            y={rightBarY + rightBarHeight / 2 - 10}
+            x={RIGHT_X + 12}
+            y={RIGHT_BAR_Y + rightBarHeight / 2 - 10}
             className="text-[22px] font-bold fill-foreground"
           >
             ${totalExpenses.toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </text>
           <text
-            x={rightX + 12}
-            y={rightBarY + rightBarHeight / 2 + 12}
+            x={RIGHT_X + 12}
+            y={RIGHT_BAR_Y + rightBarHeight / 2 + 12}
             className="text-[12px] fill-muted-foreground"
           >
             April  $52,260
           </text>
         </svg>
+
+        {/* Tooltip overlay */}
+        {hoveredItem && (
+          <SankeyTooltip
+            visible={tooltip.visible}
+            x={tooltip.x}
+            y={tooltip.y}
+            label={hoveredItem.label}
+            amount={hoveredItem.amount}
+            color={hoveredItem.color}
+            isSub={hoveredItem.isSub}
+            parentName={hoveredItem.parentName}
+          />
+        )}
       </div>
 
-      {/* Click hint */}
-      <p className="text-xs text-muted-foreground text-center mt-3">
-        Click a category to expand subcategories
-      </p>
+      {/* Contextual hint */}
+      <motion.p
+        key={hintText}
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        className="text-xs text-muted-foreground text-center mt-3"
+      >
+        {hintText}
+      </motion.p>
     </div>
   );
 };
